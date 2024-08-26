@@ -87,6 +87,12 @@ public:
 };
 #endif
 
+namespace NSJSBase
+{
+	// embed
+	void CreateEmbedNativeObject(const v8::FunctionCallbackInfo<v8::Value>& args);
+}
+
 class CV8Initializer
 {
 private:
@@ -97,6 +103,9 @@ private:
 #endif
 	v8::ArrayBuffer::Allocator* m_pAllocator;
 	bool m_bUseInspector = false;
+
+	v8::StartupData m_startupData;
+	std::wstring m_sExternalDir;
 
 public:
 	v8::Platform* getPlatform()
@@ -116,6 +125,7 @@ public:
 	CV8Initializer(const std::wstring& sDirectory = L"")
 	{
 		std::wstring sPrW = sDirectory.empty() ? NSFile::GetProcessPath() : sDirectory;
+		m_sExternalDir = sPrW;
 		std::string sPrA = U_TO_UTF8(sPrW);
 
 		m_pAllocator = NULL;
@@ -162,6 +172,8 @@ public:
 		if (m_pAllocator)
 			delete m_pAllocator;
 
+		delete[] m_startupData.data;
+
 #ifndef V8_VERSION_89_PLUS
 		delete m_platform;
 		m_platform = NULL;
@@ -198,6 +210,32 @@ public:
 		create_params.constraints.ConfigureDefaults(
 					v8::base::SysInfo::AmountOfPhysicalMemory(),
 					nMaxVirtualMemory);
+#endif
+
+#define USING_SNAPSHOT
+
+#ifdef USING_SNAPSHOT
+		const intptr_t externalRefs[] = {
+			reinterpret_cast<intptr_t>(NSJSBase::CreateEmbedNativeObject),
+			0x0
+		};
+
+		create_params.external_references = externalRefs;
+
+		std::wstring snapshotFilePath = m_sExternalDir + L"/snapshot.bin";
+		if (NSFile::CFileBinary::Exists(snapshotFilePath))
+		{
+			// load snapshot data from file
+			BYTE* data = NULL;
+			DWORD dataLength = 0;
+			if (NSFile::CFileBinary::ReadAllBytes(snapshotFilePath, &data, dataLength))
+			{
+				m_startupData.data = reinterpret_cast<const char*>(data);
+				m_startupData.raw_size = (int)dataLength;
+			}
+		}
+
+		create_params.snapshot_blob = &m_startupData;
 #endif
 
 		return v8::Isolate::New(create_params);
@@ -853,7 +891,6 @@ namespace NSJSBase
 	};
 
 	// embed
-	void CreateEmbedNativeObject(const v8::FunctionCallbackInfo<v8::Value>& args);
 
 	class CJSEmbedObjectAdapterV8Template : public CJSEmbedObjectAdapterBase
 	{

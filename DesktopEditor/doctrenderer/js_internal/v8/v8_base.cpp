@@ -111,6 +111,72 @@ namespace NSJSBase
 				if (!sctiptMB.IsEmpty())
 					script = sctiptMB.ToLocalChecked();
 			}
+
+// #define GENERATE_SNAPSHOT
+#ifdef GENERATE_SNAPSHOT
+			// Fill external references
+			const intptr_t externalRefs[] = {
+				reinterpret_cast<intptr_t>(CreateEmbedNativeObject),
+				0x0
+			};
+
+			// MAKE SNAPSHOT
+			{
+				// Before entering new isolate get script string from main one
+				v8::String::Utf8Value utf8Source(V8IsolateFirstArg source);
+
+				// Allocate empty isolate
+				v8::Isolate* isolate = v8::Isolate::Allocate();
+				// snapshot creator should be in its own scope, because it handles entering, exiting and disposing the isolate
+				v8::SnapshotCreator snapshotCreator(isolate, externalRefs);
+				{
+					v8::HandleScope handle_scope(isolate);
+					// Create a new context
+					v8::Local<v8::Context> context = v8::Context::New(isolate);
+					v8::Context::Scope context_scope(context);
+					// Trying to handle compile & run errors:
+					// window
+					v8::Local<v8::Object> global = context->Global();
+					global->Set(context, v8::String::NewFromUtf8Literal(isolate, "window"), global).Check();
+
+					// CreateEmbedObject
+					// v8::Local<v8::FunctionTemplate> templCEO = v8::FunctionTemplate::New(isolate, CreateEmbedNativeObject);
+					// v8::Local<v8::Function> funcCEO = templCEO->GetFunction(context).ToLocalChecked();
+					// global->Set(context, v8::String::NewFromUtf8(isolate, "CreateEmbedObject").ToLocalChecked(), funcCEO).Check();
+
+					// native
+					// CJSContext::Embed<CNativeControlEmbed>(true);
+					// v8::Local<v8::Value> argsNativeCtrl[2];
+					// argsNativeCtrl[0] = v8::String::NewFromUtf8(isolate, "CNativeControlEmbed").ToLocalChecked();
+					// argsNativeCtrl[1] = v8::Boolean::New(isolate, true);
+					// v8::Local<v8::Value> oNativeCtrl = funcCEO->Call(context, global, 2, argsNativeCtrl).ToLocalChecked();
+					// global->Set(context, v8::String::NewFromUtf8Literal(isolate, "native"), oNativeCtrl).Check();
+					global->Set(context, v8::String::NewFromUtf8Literal(isolate, "native"), v8::Undefined(isolate)).Check();
+
+					// Compile and run
+					v8::Local<v8::String> source = v8::String::NewFromUtf8(isolate, *utf8Source).ToLocalChecked();
+					v8::Local<v8::Script> script = v8::Script::Compile(context, source).ToLocalChecked();
+
+					if (!script->Run(context).IsEmpty())
+						std::cout << "Snapshot was created successfully!" << std::endl;
+
+					snapshotCreator.SetDefaultContext(context);
+				}
+				v8::StartupData data = snapshotCreator.CreateBlob(v8::SnapshotCreator::FunctionCodeHandling::kKeep);
+				std::cout << "Snapshot size: " << data.raw_size << std::endl;
+
+				std::wstring snapshotFilePath = CV8Worker::m_sExternalDirectory + L"/snapshot.bin";
+				NSFile::CFileBinary snapshotFile;
+				if (data.data && snapshotFile.CreateFileW(snapshotFilePath))
+				{
+					snapshotFile.WriteFile(data.data, (DWORD)data.raw_size);
+					snapshotFile.CloseFile();
+				}
+
+				delete[] data.data;
+			}
+#endif
+
 			return script;
 		}
 #else
@@ -357,6 +423,13 @@ namespace NSJSBase
 		v8::Local<v8::Script> _script;
 		if(!scriptPath.empty())
 		{
+#ifdef USING_SNAPSHOT
+			std::cout << "Ignoring compiling and running SDK scripts because of using snapshot..." << std::endl;
+			CJSValueV8* _return = new CJSValueV8();
+			_return->value = v8::Undefined(V8IsolateOneArg);
+			return _return;
+#endif
+
 			std::wstring sCachePath = scriptPath.substr(0, scriptPath.rfind(L".")) + L".cache";
 			CCacheDataScript oCachedScript(sCachePath);
 			_script = oCachedScript.Compile(m_internal->m_context, _source);

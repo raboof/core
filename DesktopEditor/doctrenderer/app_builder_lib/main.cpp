@@ -34,39 +34,49 @@
 #include "../docbuilder.h"
 #include "./utils.cpp"
 
+#include <chrono>
+#include <iostream>
+
 using namespace NSDoctRenderer;
 int main(int argc, char *argv[])
 {
+	auto start = std::chrono::high_resolution_clock::now();
+
 	std::wstring sProcessDirectory = NSUtils::GetProcessDirectory();
     // для дебага БЕЗ x2t - подкидываем билдер в папку builder к тестовому примеру
 	std::wstring sWorkDirectory = NSUtils::GetBuilderDirectory();
 
     CDocBuilder::Initialize(sWorkDirectory.c_str());
 
-    CDocBuilder oBuilder;
+	CDocBuilder oBuilder;
     oBuilder.SetProperty("--work-directory", sWorkDirectory.c_str());
 
     oBuilder.CreateFile(OFFICESTUDIO_FILE_DOCUMENT_DOCX);
 
     CContext oContext = oBuilder.GetContext();
-    CContextScope oScope = oContext.CreateScope();
+	CContextScope oScope = oContext.CreateScope();
 
-    CValue oGlobal = oContext.GetGlobal();
+	CValue oGlobal = oContext.GetGlobal();
 
-    CValue oApi = oGlobal["Api"];
-    CValue oDocument = oApi.Call("GetDocument");
-    CValue oParagraph = oApi.Call("CreateParagraph");
-    oParagraph.Call("SetSpacingAfter", 1000, false);
-    oParagraph.Call("AddText", "Hello, world!");
-    CValue oContent = oContext.CreateArray(1);
-    oContent[0] = oParagraph;
-    oDocument.Call("InsertContent", oContent);
+	CValue oApi = oGlobal["Api"];
+	CValue oDocument = oApi.Call("GetDocument");
+	CValue oParagraph = oApi.Call("CreateParagraph");
+	oParagraph.Call("SetSpacingAfter", 1000, false);
+	oParagraph.Call("AddText", "Hello, world!");
+	CValue oContent = oContext.CreateArray(1);
+	oContent[0] = oParagraph;
+	oDocument.Call("InsertContent", oContent);
 
-    std::wstring sDstPath = sProcessDirectory + L"/result.docx";
-    oBuilder.SaveFile(OFFICESTUDIO_FILE_DOCUMENT_DOCX, sDstPath.c_str());
+	// std::wstring sDstPath = sProcessDirectory + L"/result.docx";
+	// oBuilder.SaveFile(OFFICESTUDIO_FILE_DOCUMENT_DOCX, sDstPath.c_str());
     oBuilder.CloseFile();
 
     CDocBuilder::Dispose();
+
+	auto end = std::chrono::high_resolution_clock::now();
+
+	std::chrono::duration<double, std::milli> duration = end - start;
+	std::cout << "Execution time: " << duration.count() << "ms" << std::endl;
 
     return 0;
 }
