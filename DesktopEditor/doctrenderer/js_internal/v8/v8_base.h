@@ -213,18 +213,17 @@ public:
 #endif
 
 #define USING_SNAPSHOT
-
 #ifdef USING_SNAPSHOT
-		const intptr_t externalRefs[] = {
-			reinterpret_cast<intptr_t>(NSJSBase::CreateEmbedNativeObject),
-			0x0
-		};
-
-		create_params.external_references = externalRefs;
-
 		std::wstring snapshotFilePath = m_sExternalDir + L"/snapshot.bin";
 		if (NSFile::CFileBinary::Exists(snapshotFilePath))
 		{
+			const intptr_t externalRefs[] = {
+				reinterpret_cast<intptr_t>(NSJSBase::CreateEmbedNativeObject),
+				0x0
+			};
+
+			create_params.external_references = externalRefs;
+
 			// load snapshot data from file
 			BYTE* data = NULL;
 			DWORD dataLength = 0;
@@ -233,9 +232,9 @@ public:
 				m_startupData.data = reinterpret_cast<const char*>(data);
 				m_startupData.raw_size = (int)dataLength;
 			}
-		}
 
-		create_params.snapshot_blob = &m_startupData;
+			create_params.snapshot_blob = &m_startupData;
+		}
 #endif
 
 		return v8::Isolate::New(create_params);
