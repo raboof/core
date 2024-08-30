@@ -59,7 +59,7 @@ static void LOGGING(const std::string& strFile, const std::wstring& strMessage)
 	NSFile::CUtf8Converter::GetUtf8StringFromUnicode(strMessage.c_str(), (LONG)strMessage.length(), pData, lLen);
 	pData[lLen] = 0;
 
-	fprintf(f, (char*)pData);
+	fprintf(f, "%s", (char*)pData);
 	fprintf(f, "\n");
 	fclose(f);
 
